@@ -104,7 +104,6 @@ def load_config(config_path: Path | None = None) -> Dict[str, Any]:
     log_dir = config["app"]["log_dir"]
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(os.path.join(data_dir, "logos"), exist_ok=True)
     os.makedirs(os.path.join(data_dir, "backups"), exist_ok=True)
 
     _config = config

@@ -37,7 +37,7 @@ COPY backend/ ./backend/
 COPY --from=frontend-builder /app/frontend/dist/ ./frontend/build/
 
 # Create data directories
-RUN mkdir -p /data/logs /data/logos /data/backups && \
+RUN mkdir -p /data/logs /data/backups && \
     chown -R telifisan:telifisan /data /app
 
 # Drop to non-root user
@@ -56,4 +56,4 @@ ENV TELIFISAN_PORT=8000 \
     TELIFISAN_LOG_LEVEL=INFO
 
 # Run
-CMD ["python", "-m", "backend.main"]
+CMD mkdir -p /data/logs /data/backups && python -m backend.main
