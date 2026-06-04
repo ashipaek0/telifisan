@@ -114,7 +114,7 @@ def generate_profile(profile_id: str, db: Session = Depends(get_db)):
         best = _select_best_stream(ch, profile)
         if best:
             ch_streams.append((ch, best))
-    ch_streams = _sort_channels(ch_streams, profile.sort_by)
+    ch_streams = _sort_channels(ch_streams)
     m3u_content = _generate_m3u(ch_streams, profile)
     _output_cache[profile_id] = {"m3u": m3u_content}
     return {

@@ -138,6 +138,8 @@ app.include_router(config_router, prefix="/api/v1")
 
 @app.get("/output/default.m3u")
 def serve_default_m3u():
+    import logging
+    log = logging.getLogger("telifisan")
     db = get_session()
     try:
         from backend.models import OutputProfile
@@ -157,12 +159,15 @@ def serve_default_m3u():
                 best = _select_best_stream(ch, profile)
                 if best:
                     ch_streams.append((ch, best))
-            ch_streams = _sort_channels(ch_streams, profile.sort_by)
+            ch_streams = _sort_channels(ch_streams)
             m3u = _generate_m3u(ch_streams, profile)
             _output_cache[profile.id] = {"m3u": m3u}
         else:
             m3u = cached.get("m3u", "")
         return StreamingResponse(content=iter([m3u]), media_type="audio/x-mpegurl")
+    except Exception as e:
+        log.exception(f"M3U endpoint error: {e}")
+        return StreamingResponse(content=iter(["#EXTM3U\n"]), media_type="audio/x-mpegurl")
     finally:
         db.close()
 
