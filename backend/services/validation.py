@@ -187,6 +187,14 @@ def validate_all_streams(db: Session) -> TaskLog:
 
 def check_stream(stream: SourceStream, db: Session) -> ValidationRecord | None:
     """Check a single stream and record the result."""
+    # Check cancellation before starting (immediate stop for the next stream)
+    try:
+        from backend.services.scheduler import _was_cancelled
+        if _was_cancelled("validate_streams"):
+            return None
+    except Exception:
+        pass
+
     config = get_config()
     timeout_ms = config.get("validation", {}).get("timeout_ms", 30000)
     timeout_sec = timeout_ms / 1000

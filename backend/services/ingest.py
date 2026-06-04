@@ -62,6 +62,16 @@ def ingest_source(source_id: str, db: Session) -> TaskLog:
         return task_log
 
     try:
+        # Check cancellation before fetching source data
+        try:
+            from backend.services.scheduler import _was_cancelled
+            if _was_cancelled("ingest_source") or _was_cancelled("ingest_sources"):
+                task_log.status = TaskStatus.FAILED
+                task_log.message = "Cancelled by user"
+                return task_log
+        except Exception:
+            pass
+
         raw_streams, stats = _fetch_source_data(source)
 
         # Parse error threshold check — only if we actually got content
