@@ -11,9 +11,10 @@ import re
 import subprocess
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import List
+from concurrent.futures import wait, FIRST_COMPLETED
 from urllib.parse import urlparse
 
 import requests
@@ -142,9 +143,13 @@ def validate_all_streams(db: Session) -> TaskLog:
 
         # Process results, submit next batch as workers free up
         while pending and not cancelled:
-            done = set()
-            for future in as_completed(pending, timeout=0.5):
-                done.add(future)
+            done, _ = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+            if not done:
+                time.sleep(0.1)
+                continue
+
+            for future in done:
+                del pending[future]
                 try:
                     result = future.result()
                     checked += 1
@@ -158,9 +163,6 @@ def validate_all_streams(db: Session) -> TaskLog:
                 except Exception as e:
                     logger.error(f"Validation worker error: {e}")
                     errors += 1
-
-            for f in done:
-                del pending[f]
 
             # Check cancellation after processing results
             try:
