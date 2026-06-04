@@ -160,13 +160,13 @@ export default function Dashboard() {
           <input
             className="input flex-1 text-xs font-mono"
             readOnly
-            value={`http://${window.location.hostname}:8000/output/default.m3u`}
+            value={`http://${window.location.hostname}:${window.location.port || '8000'}/output/default.m3u`}
             onClick={(e) => e.target.select()}
           />
           <button
             className="btn btn-ghost p-2 shrink-0"
             onClick={() => {
-              navigator.clipboard.writeText(`http://${window.location.hostname}:8000/output/default.m3u`);
+              navigator.clipboard.writeText(`http://${window.location.hostname}:${window.location.port || '8000'}/output/default.m3u`);
               toast('URL copied', 'success');
             }}
             title="Copy URL"
