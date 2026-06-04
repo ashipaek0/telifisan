@@ -128,46 +128,64 @@ def validate_all_streams(db: Session) -> TaskLog:
     stagger_ms = val_config.get("inter_stream_delay_ms", 50) / 1000.0
 
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = {}
-        for s in streams:
-            # Check cancellation before submitting more work
-            try:
-                from backend.services.scheduler import _was_cancelled
-                if _was_cancelled("validate_streams"):
-                    write_log("INFO", "telifisan.validation", "Validate: cancelled, shutting down")
-                    executor.shutdown(wait=False, cancel_futures=True)
-                    break
-            except Exception:
-                pass
+        pending = {}
+        stream_iter = iter(streams)
+        cancelled = False
 
-            futures[executor.submit(_validate_stream_by_id, s.id)] = s
-            if stagger_ms > 0:
-                time.sleep(stagger_ms)
-
-        for future in as_completed(futures):
-            # Check cancellation between results
+        # Submit initial batch
+        for _ in range(min(concurrency, total_streams)):
             try:
-                from backend.services.scheduler import _was_cancelled
-                if _was_cancelled("validate_streams"):
-                    break
-            except Exception:
-                pass
+                s = next(stream_iter)
+                pending[executor.submit(_validate_stream_by_id, s.id)] = s
+            except StopIteration:
+                break
 
-            try:
-                result = future.result()
-                checked += 1
-                if result and result.success:
-                    alive += 1
-                elif result:
-                    dead += 1
-                else:
+        # Process results, submit next batch as workers free up
+        while pending and not cancelled:
+            done = set()
+            for future in as_completed(pending, timeout=0.5):
+                done.add(future)
+                try:
+                    result = future.result()
+                    checked += 1
+                    if result and result.success:
+                        alive += 1
+                    elif result:
+                        dead += 1
+                    else:
+                        errors += 1
+                    _try_broadcast_progress(checked, total_streams, alive, dead, errors)
+                except Exception as e:
+                    logger.error(f"Validation worker error: {e}")
                     errors += 1
 
-                # Log progress periodically
-                _try_broadcast_progress(checked, total_streams, alive, dead, errors)
-            except Exception as e:
-                logger.error(f"Validation worker error: {e}")
-                errors += 1
+            for f in done:
+                del pending[f]
+
+            # Check cancellation after processing results
+            try:
+                from backend.services.scheduler import _was_cancelled
+                if _was_cancelled("validate_streams"):
+                    write_log("INFO", "telifisan.validation", "Validate: cancelled by user")
+                    cancelled = True
+                    break
+            except Exception:
+                pass
+
+            # Submit next stream(s) to keep the pool saturated
+            while not cancelled and len(pending) < concurrency:
+                try:
+                    s = next(stream_iter)
+                    pending[executor.submit(_validate_stream_by_id, s.id)] = s
+                    if stagger_ms > 0:
+                        time.sleep(stagger_ms)
+                except StopIteration:
+                    break
+
+        # If cancelled, drain remaining futures or shut down
+        if cancelled:
+            write_log("INFO", "telifisan.validation", f"Validate: stopping after {checked}/{total_streams} checked")
+            executor.shutdown(wait=False, cancel_futures=True)
 
     # Update all canonical channel statuses
     _update_channel_statuses(db)
