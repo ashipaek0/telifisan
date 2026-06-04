@@ -9,6 +9,7 @@ __pycache__/
 # Frontend
 node_modules/
 dist/
+frontend/build/
 
 # OS
 .DS_Store
