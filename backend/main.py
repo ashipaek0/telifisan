@@ -151,9 +151,12 @@ def serve_default_m3u():
         cached = _output_cache.get(profile.id)
         if not cached:
             from backend.services.output import generate_profile_output, _select_best_stream, _sort_channels, _generate_m3u
-            from backend.models import CanonicalChannel
+            from backend.models import CanonicalChannel, ValidationStatus
             generate_profile_output(profile.id, db)
             channels = db.query(CanonicalChannel).all()
+            # Filter to only ALIVE channels unless profile overrides
+            if not profile.include_dead_channels:
+                channels = [ch for ch in channels if ch.validation_status == ValidationStatus.ALIVE]
             ch_streams = []
             for ch in channels:
                 best = _select_best_stream(ch, profile)

@@ -40,9 +40,9 @@ def generate_profile_output(profile_id: str, db: Session) -> TaskLog:
                 s.deleted_at is None and s.source_id in source_ids for s in ch.source_streams
             )]
 
-        # Exclude dead channels
+        # Only include ALIVE channels (unless include_dead_channels is set)
         if not profile.include_dead_channels:
-            channels = [ch for ch in channels if ch.validation_status not in (ValidationStatus.HARD_DEAD,)]
+            channels = [ch for ch in channels if ch.validation_status == ValidationStatus.ALIVE]
 
         # Min uptime
         if profile.min_uptime_percent and profile.min_uptime_percent > 0:
