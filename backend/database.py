@@ -56,6 +56,20 @@ def init_db(config=None):
     is_sqlite = db_url.startswith("sqlite")
     connect_args = {"check_same_thread": False} if is_sqlite else {}
 
+    if is_sqlite:
+        # WAL mode: concurrent reads during writes, crash-resistant journaling
+        connect_args["timeout"] = 15  # seconds to wait for write lock
+        from sqlalchemy import event
+
+        def _enable_wal(dbapi_connection, connection_record):
+            try:
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA busy_timeout=10000")  # 10s busy timeout
+                cursor.close()
+            except Exception:
+                pass
+
     engine_kwargs = {
         "connect_args": connect_args,
         "echo": False,
@@ -70,7 +84,11 @@ def init_db(config=None):
 
     _engine = create_engine(db_url, **engine_kwargs)
 
-    Base.metadata.create_all(bind=_engine)
+    if is_sqlite:
+        event.listen(_engine, "connect", _enable_wal)
+
+    # Skip create_all on startup — migrations handle schema (avoids write lock)
+    # Base.metadata.create_all(bind=_engine)
 
     _SessionLocal = sessionmaker(
         bind=_engine,

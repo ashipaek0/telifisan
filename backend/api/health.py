@@ -56,7 +56,18 @@ def dashboard(db: Session = Depends(get_db)):
     unknown = ch_count(ValidationStatus.UNKNOWN)
     total_profiles = db.query(func.count(OutputProfile.id)).filter(OutputProfile.deleted_at.is_(None)).scalar() or 0
 
-    recent_tasks = db.query(TaskLog).order_by(TaskLog.created_at.desc()).limit(5).all()
+    # Latest run per task type (deduplicated)
+    task_names = db.query(TaskLog.task_name).distinct().all()
+    recent_tasks = []
+    for (name,) in task_names:
+        last = db.query(TaskLog).filter(TaskLog.task_name == name).order_by(TaskLog.created_at.desc()).first()
+        if last:
+            recent_tasks.append(last)
+    recent_tasks.sort(key=lambda t: t.created_at or datetime.min, reverse=True)
+    recent_tasks = recent_tasks[:5]
+
+    from backend.services.scheduler import get_progress as _get_progress
+    task_progress = list(_get_progress().values())
 
     return {
         "success": True,
@@ -69,6 +80,7 @@ def dashboard(db: Session = Depends(get_db)):
                  "started_at": t.started_at.isoformat() if t.started_at else None, "message": t.message}
                 for t in recent_tasks
             ],
+            "task_progress": task_progress,
         },
         "error": None,
         "timestamp": now.isoformat(),

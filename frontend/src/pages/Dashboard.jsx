@@ -1,18 +1,43 @@
-import { useState, useEffect } from 'react';
-import { getDashboard, runTask } from '../api/client';
+import { useState, useEffect, useRef } from 'react';
+import { getDashboard, runTask, stopTask } from '../api/client';
 import { toast } from '../components/Toast';
 import LogViewer from '../components/LogViewer';
-import { Tv, Server, Activity, Play, Copy } from 'lucide-react';
+import { Tv, Server, Activity, Play, Square, Copy } from 'lucide-react';
+
+function relativeTime(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return 'just now';
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function progressPercent(current, total) {
+  if (!total || total <= 0) return 0;
+  return Math.min(100, Math.round((current / total) * 100));
+}
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Poll dashboard (includes task_progress) every 3 seconds
   useEffect(() => {
-    getDashboard().then(d => {
-      setStats(d.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    const poll = () => {
+      getDashboard().then(d => {
+        setStats(d.data);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    };
+    poll();
+    const iv = setInterval(poll, 3000);
+    return () => clearInterval(iv);
   }, []);
 
   const statusBadge = (status) => {
@@ -43,6 +68,22 @@ export default function Dashboard() {
         {tile(<Activity size={24} />, 'Alive', stats.channels?.alive || 0)}
       </div>
 
+      {stats?.task_progress?.length > 0 && stats.task_progress.map((p, i) => (
+        <div key={i} className="card border-accent-600/50">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-2 h-2 bg-accent-400 rounded-full animate-pulse" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-accent-400 capitalize">{p.task_name?.replace(/_/g, ' ')}</p>
+              <p className="text-xs text-surface-500 truncate">{p.message || 'running...'}</p>
+            </div>
+            <span className="text-xs text-surface-500 shrink-0">{p.percent}%</span>
+          </div>
+          <div className="w-full h-2 bg-surface-700 rounded-full overflow-hidden">
+            <div className="h-full bg-accent-500 rounded-full transition-all duration-500 ease-out" style={{ width: `${progressPercent(p.current, p.total)}%` }} />
+          </div>
+        </div>
+      ))}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <h3 className="font-medium text-surface-200 mb-3">Channel Status</h3>
@@ -63,7 +104,10 @@ export default function Dashboard() {
           <div className="space-y-2">
             {(stats.recent_tasks || []).map((t, i) => (
               <div key={i} className="flex items-center justify-between py-1">
-                <span className="text-sm text-surface-400">{t.task_name?.replace(/_/g, ' ') || '—'}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm text-surface-400">{t.task_name?.replace(/_/g, ' ') || '—'}</span>
+                  <span className="text-[10px] text-surface-600 ml-2">{relativeTime(t.started_at)}</span>
+                </div>
                 {statusBadge(t.status)}
               </div>
             ))}
@@ -75,18 +119,32 @@ export default function Dashboard() {
         <h3 className="font-medium text-surface-200 mb-3">Quick Actions</h3>
         {localStorage.getItem('telifisan_api_key') ? (
           <div className="flex flex-wrap gap-2">
-            {tasks.map(name => (
-              <button key={name} className="btn btn-ghost text-xs flex items-center gap-1" onClick={() => {
-                runTask(name)
-                  .then(() => toast(`Task '${name.replace(/_/g, ' ')}' triggered`, 'success'))
-                  .catch((err) => {
-                    const msg = err.response?.data?.detail || err.message || 'Unknown error';
-                    toast(`Failed: ${msg}`, 'error');
-                  });
-              }}>
-                <Play size={12} /> {name.replace(/_/g, ' ')}
-              </button>
-            ))}
+            {tasks.map(name => {
+              const isRunning = (stats?.task_progress || []).some(p => p.task_name === name);
+              return (
+                <div key={name} className="flex gap-1">
+                  <button className="btn btn-ghost text-xs flex items-center gap-1" onClick={() => {
+                    runTask(name)
+                      .then(() => toast(`Task '${name.replace(/_/g, ' ')}' triggered`, 'success'))
+                      .catch((err) => {
+                        const msg = err.response?.data?.detail || err.message || 'Unknown error';
+                        toast(`Failed: ${msg}`, 'error');
+                      });
+                  }}>
+                    <Play size={12} /> {name.replace(/_/g, ' ')}
+                  </button>
+                  {isRunning && (
+                    <button className="btn btn-ghost text-xs flex items-center gap-1 text-red-400" onClick={() => {
+                      stopTask(name)
+                        .then(() => toast(`Task '${name.replace(/_/g, ' ')}' stopped`, 'warning'))
+                        .catch(() => toast('Failed to stop task', 'error'));
+                    }}>
+                      <Square size={12} /> Stop
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-surface-500">

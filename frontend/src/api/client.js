@@ -47,6 +47,7 @@ export const generateProfile = (id) => client.post(`/profiles/${id}/generate`);
 // ── Tasks ───────────────────────────────────────
 export const listTasks = () => client.get('/tasks');
 export const runTask = (name) => client.post(`/tasks/${name}/run`);
+export const stopTask = (name) => client.post(`/tasks/${name}/stop`);
 export const getTaskLogs = (name, page = 1) => client.get(`/tasks/${name}/logs?page=${page}&per_page=20`);
 
 // ── Logs ────────────────────────────────────────

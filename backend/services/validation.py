@@ -54,6 +54,13 @@ def _try_broadcast_progress(checked: int, total: int, alive: int, dead: int, err
     if checked % 10 == 0 or checked == total:
         write_log("INFO", "telifisan.validation",
                   f"Validate: {checked}/{total} ({alive} alive, {dead} dead, {errors} err)")
+    # Update progress tracker in scheduler
+    try:
+        from backend.services.scheduler import set_progress
+        set_progress("validate_streams", checked, total,
+                     f"{alive} alive, {dead} dead ({checked}/{total})")
+    except Exception:
+        pass
 
 
 def _validate_stream_by_id(stream_id: str) -> ValidationRecord | None:

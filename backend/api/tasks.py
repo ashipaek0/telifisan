@@ -9,13 +9,28 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import TaskLog
+from backend.models import TaskLog, TaskStatus
 
 router = APIRouter(tags=["tasks"])
 
 
 @router.get("/tasks")
 def list_tasks(db: Session = Depends(get_db)):
+    # Auto-expire stale RUNNING entries (> 30 min)
+    stale = db.query(TaskLog).filter(TaskLog.status == TaskStatus.RUNNING).all()
+    now = datetime.now(timezone.utc)
+    from datetime import timedelta
+    for t in stale:
+        started = t.started_at
+        if started and started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if started and (now - started) > timedelta(minutes=30):
+            t.status = TaskStatus.FAILED
+            t.message = "Stale — timed out"
+            t.completed_at = now
+    if stale:
+        db.commit()
+
     task_names = db.query(TaskLog.task_name).distinct().all()
     tasks = []
     for row in task_names:
@@ -58,6 +73,25 @@ def get_task_logs(task_name: str, page: int = 1, per_page: int = 20, db: Session
 @router.post("/tasks/{task_name}/run")
 def trigger_task(task_name: str, db: Session = Depends(get_db)):
     from backend.services.scheduler import run_task_now
+
+    # Check for stale RUNNING status (> 30 min) and clear it
+    stale = db.query(TaskLog).filter(
+        TaskLog.task_name == task_name,
+        TaskLog.status == TaskStatus.RUNNING,
+    ).first()
+    if stale and stale.started_at:
+        age = datetime.now(timezone.utc)
+        started = stale.started_at
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if (age - started).total_seconds() > 1800:  # 30 min stale
+            stale.status = TaskStatus.FAILED
+            stale.message = "Stale — cancelled (timed out)"
+            stale.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            from backend.services.scheduler import cancel_task
+            cancel_task(task_name)
+
     try:
         log_entry = run_task_now(task_name, db)
         return {
@@ -69,3 +103,28 @@ def trigger_task(task_name: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tasks/{task_name}/stop")
+def stop_task(task_name: str, db: Session = Depends(get_db)):
+    """Cancel a running task."""
+    from backend.services.scheduler import cancel_task
+    cancelled = cancel_task(task_name)
+
+    # Mark any RUNNING task log as FAILED
+    running = db.query(TaskLog).filter(
+        TaskLog.task_name == task_name,
+        TaskLog.status == TaskStatus.RUNNING,
+    ).all()
+    now = datetime.now(timezone.utc)
+    for log in running:
+        log.status = TaskStatus.FAILED
+        log.message = "Cancelled by user"
+        log.completed_at = now
+    db.commit()
+
+    return {
+        "success": True,
+        "data": {"task_name": task_name, "was_running": cancelled or len(running) > 0},
+        "error": None, "timestamp": now.isoformat(),
+    }
