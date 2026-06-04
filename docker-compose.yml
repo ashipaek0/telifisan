@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   telifisan:
-    image: telifisan:latest
+    image: irunmole/telifisan:latest
     container_name: telifisan
     ports:
       - "8000:8000"
@@ -11,6 +9,6 @@ services:
     environment:
       - TELIFISAN_PORT=8000
       - TELIFISAN_DATA_DIR=/data
-      - TELIFISAN_LOG_LEVEL=INFO
+      - TELIFISAN_LOG_LEVEL=DEBUG
     restart: unless-stopped
     stop_grace_period: 30s
