@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { listSources, createSource, updateSource, deleteSource, ingestSource } from '../api/client';
+import { listSources, createSource, updateSource, deleteSource, ingestSource, validateSource } from '../api/client';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
-import { Plus, Play, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Play, RefreshCw, Trash2, Edit2 } from 'lucide-react';
 
 export default function Sources() {
   const [sources, setSources] = useState([]);
@@ -57,6 +57,7 @@ export default function Sources() {
       <div className="flex gap-1">
         <button className="btn btn-ghost p-1.5" title="Edit" onClick={(e) => { e.stopPropagation(); setModal({ mode: 'edit', data: r }); }}><Edit2 size={14} /></button>
         <button className="btn btn-ghost p-1.5 text-accent-400" title="Ingest" onClick={(e) => { e.stopPropagation(); handleIngest(r.id); }}><Play size={14} /></button>
+        <button className="btn btn-ghost p-1.5 text-green-400" title="Validate" onClick={(e) => { e.stopPropagation(); validateSource(r.id).then(load).catch(() => {}); }}><RefreshCw size={14} /></button>
         <button className="btn btn-ghost p-1.5 text-red-400" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}><Trash2 size={14} /></button>
       </div>
     )},

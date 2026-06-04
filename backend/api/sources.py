@@ -253,3 +253,61 @@ def bulk_delete_streams(source_id: str, body: dict, db: Session = Depends(get_db
         "error": None,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.post("/sources/{source_id}/validate")
+def validate_source(source_id: str, db: Session = Depends(get_db)):
+    """Validate streams from a single source only."""
+    source = db.query(Source).filter_by(id=source_id, deleted_at=None).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    from backend.services.validation import validate_all_streams
+    from backend.services.validation import check_stream
+    from backend.models import SourceStream, TaskLog, TaskStatus
+    from datetime import datetime, timezone
+
+    task_log = TaskLog(task_name="validate_source", status=TaskStatus.RUNNING, started_at=datetime.now(timezone.utc))
+    db.add(task_log)
+    db.commit()
+
+    streams = db.query(SourceStream).filter(
+        SourceStream.source_id == source_id, SourceStream.deleted_at.is_(None)
+    ).all()
+
+    checked = 0
+    alive = 0
+    dead = 0
+    errors = 0
+
+    for stream in streams:
+        try:
+            record = check_stream(stream, db)
+            checked += 1
+            if record and record.success:
+                alive += 1
+            elif record:
+                dead += 1
+            else:
+                errors += 1
+        except Exception:
+            errors += 1
+
+    # Update channel statuses for affected channels
+    from backend.services.validation import _update_channel_statuses
+    _update_channel_statuses(db)
+
+    task_log.status = TaskStatus.SUCCESS
+    task_log.message = f"Checked {checked} streams: {alive} alive, {dead} dead, {errors} errors"
+    task_log.stats = {"checked": checked, "alive": alive, "dead": dead, "errors": errors}
+    task_log.completed_at = datetime.now(timezone.utc)
+    if task_log.started_at:
+        task_log.duration_ms = int((task_log.completed_at - task_log.started_at).total_seconds() * 1000)
+    db.commit()
+
+    return {
+        "success": True,
+        "data": {"task_log_id": task_log.id, "status": task_log.status.value, "message": task_log.message, "stats": task_log.stats},
+        "error": None,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }

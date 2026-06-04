@@ -30,6 +30,7 @@ export const createSource = (data) => client.post('/sources', data);
 export const updateSource = (id, data) => client.put(`/sources/${id}`, data);
 export const deleteSource = (id) => client.delete(`/sources/${id}`);
 export const ingestSource = (id) => client.post(`/sources/${id}/ingest`);
+export const validateSource = (id) => client.post(`/sources/${id}/validate`);
 
 // ── Channels ────────────────────────────────────
 export const listChannels = (params = {}) => client.get('/channels', { params });
