@@ -1,8 +1,8 @@
 # Telifisan
 
-Self-hosted IPTV playlist lifecycle manager
+Self-hosted IPTV playlist manager. Ingest M3U/Xtream sources, validate streams, and serve a clean M3U of live channels.
 
-Ingests M3U/Xtream Codes sources, validates streams, applies rules-based filtering and enrichment, and serves cleaned playlists (M3U + XMLTV) to downstream IPTV apps.
+Pipeline: **Sources → Ingest → Validate → Output → Serve**
 
 ## Quick Start
 
@@ -11,35 +11,7 @@ pip install -r requirements.txt
 python -m backend.main
 ```
 
-API at `http://localhost:8000`. On first boot, an API key is generated and a default admin user created:
-- Username: `admin` / Password: `admin`
-- Login: `POST /api/v1/auth/login`
-
-## Docker
-
-```bash
-docker build -t telifisan .
-docker run -p 8000:8000 -v $(pwd)/data:/data telifisan
-```
-
-Or with compose:
-
-```bash
-docker-compose up -d
-```
-
-The Docker image runs as non-root user `telifisan` with a multi-stage build for minimal size.
-
-## CLI
-
-```bash
-python -m backend.cli sources list
-python -m backend.cli sources ingest <id>
-python -m backend.cli channels list --status alive
-python -m backend.cli tasks run validate_streams
-python -m backend.cli backup
-python -m backend.cli rotate-key
-```
+API at `http://localhost:8000`. On first boot, a default output profile is created and an API key is logged to stdout. GET requests are public; POST/PUT/DELETE require `Authorization: Bearer <api_key>`.
 
 ## Frontend
 
@@ -47,116 +19,74 @@ python -m backend.cli rotate-key
 cd frontend && npm install && npm run dev
 ```
 
-Opens at `http://localhost:5173` with Vite proxy to backend. Dark/light theme toggle, 9 pages.
+Opens at `http://localhost:5173` with Vite proxy to backend. Pages: Dashboard, Sources, Channels.
+
+## M3U Output
+
+`http://localhost:8000/output/default.m3u` — no auth required. Paste into any IPTV app (TiviMate, Plex, Kodi).
 
 ## API
 
-All `/api/v1/` endpoints require `Authorization: Bearer <api_key_or_token>`.
+| Method | Endpoint | Auth |
+|--------|----------|------|
+| GET | `/health` | No |
+| GET | `/dashboard` | No |
+| GET | `/output/default.m3u` | No |
+| GET | `/api/v1/logs` | No |
+| GET | `/api/v1/config/key` | No |
+| GET/POST/PUT/DELETE | `/api/v1/sources` | Write ops only |
+| POST | `/api/v1/sources/{id}/ingest` | Yes |
+| GET/DELETE | `/api/v1/channels` | Write ops only |
+| GET/POST/PUT/DELETE | `/api/v1/profiles` | Write ops only |
+| POST | `/api/v1/profiles/{id}/generate` | Yes |
+| GET | `/api/v1/profiles/{id}/m3u` | No |
+| GET/POST | `/api/v1/tasks` | Yes |
+| POST | `/api/v1/config/log-level` | Yes |
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /health` | Liveness + DB check |
-| `GET /dashboard` | Stats overview |
-| `GET /proxy-stats` | Live proxy connections |
-| `GET /metrics` | Prometheus metrics |
-| `POST /api/v1/auth/login` | User login → API token |
-| `GET/POST /api/v1/auth/users` | User management |
-| `GET/POST /api/v1/sources` | Source CRUD |
-| `POST /api/v1/sources/{id}/ingest` | Trigger ingest |
-| `GET /api/v1/channels` | Filterable channel list |
-| `POST /api/v1/channels/bulk` | Bulk actions |
-| `GET/POST /api/v1/rules` | Rule CRUD |
-| `GET /api/v1/rules/templates` | Rule templates |
-| `POST /api/v1/rules/templates/{id}/import` | Import template |
-| `GET/POST /api/v1/profiles` | Profile CRUD |
-| `GET /api/v1/profiles/{id}/m3u` | M3U output |
-| `GET /api/v1/profiles/{id}/xmltv` | XMLTV output |
-| `GET/POST /api/v1/epg-sources` | EPG source CRUD |
-| `GET /api/v1/epg-sources/coverage` | EPG coverage report |
-| `GET/POST /api/v1/overrides` | Enrichment overrides |
-| `GET/PUT /api/v1/config` | System config |
-| `GET /api/v1/config/export` | Export all config |
-| `POST /api/v1/config/import` | Import config |
-| `POST /api/v1/config/backup` | DB backup |
-| `POST /api/v1/config/key/rotate` | Rotate API key |
-| `GET/POST /api/v1/tasks` | Task management |
-| `GET /stream/proxy/{id}` | Stream proxy relay |
-| `GET /player_api.php` | Xtream Codes emulation |
-| `WS /ws/validate` | WebSocket validation progress |
+## Scheduled Tasks
 
-## Architecture
+Running automatically via APScheduler:
 
-```
-telefisan/
-├── backend/
-│   ├── main.py              # FastAPI app, CORS, rate limiting, auth
-│   ├── models.py            # 13 ORM entities (v3.0)
-│   ├── database.py          # SQLite/PostgreSQL + FTS5 search
-│   ├── config.py            # YAML + env config
-│   ├── cli.py               # CLI management tool
-│   ├── alembic.ini          # DB migrations
-│   ├── api/                 # 14 API routers
-│   ├── services/            # 13 service modules
-│   ├── utils/               # 7 utilities
-│   └── migrations/          # Alembic migrations
-├── frontend/                # React 18+ Vite app (9 pages)
-├── tests/                   # 34 pytest tests
-├── Dockerfile               # Multi-stage build
-├── docker-compose.yml
-├── config.yaml
-└── .github/workflows/ci.yml # CI/CD pipeline
-```
+- **ingest_sources** — every 6 hours
+- **validate_streams** — every 2 hours
+- **generate_outputs** — every 1 hour
+
+Manual trigger: `POST /api/v1/tasks/{name}/run` or via Dashboard Quick Actions.
 
 ## Processing Pipeline
 
-1. **Ingest** — M3U/Xtream → SourceStreams → CanonicalChannels (tiered matching)
-2. **Validate** — HTTP HEAD → HLS manifest → ffprobe → streamlink (20 concurrent)
-3. **Enrich** — Name sanitisation, TVDB logos, community DB fallback, category normalisation, country/language, EPG mapping
-4. **Rules** — SIMPLE + ADVANCED (condition trees, RestrictedPython scripting, 10 templates)
-5. **Output** — M3U/XMLTV per profile (DIRECT/PROXY modes)
-6. **Proxy** — Async stream relay with connection + mid-stream failover, ffmpeg transcoding
-7. **Xtream** — TiviMate-compatible API emulation
-8. **Cleanup** — Orphan removal, data retention, automated daily backups
-
-## Key v3.0 Features
-
-- **PostgreSQL support** — swappable via `database.driver: postgresql`
-- **FTS5 full-text search** — 10-100x faster channel search
-- **Async proxy** — httpx non-blocking streaming
-- **Mid-stream failover** — transparent source switching on connection drop
-- **Stream re-encoding** — ffmpeg transcoding with configurable codec/bitrate/resolution
-- **Multi-user auth** — admin/viewer roles, token management, audit logs
-- **Webhooks** — Slack, Discord, Telegram notifications
-- **10 rule templates** — one-click import for common filters
-- **Prometheus metrics** — `/metrics` endpoint
-- **WebSocket** — real-time validation progress
-- **Import/Export** — full config as JSON
-- **Alembic migrations** — versioned DB schema
+1. **Ingest** — Fetch M3U URL / Xtream API, parse streams, deduplicate into canonical channels by tvg_id and name
+2. **Validate** — HTTP HEAD → ffprobe → streamlink. Concurrent (20 workers). Per-domain rate limiting (4 concurrent). Stale lock timeout 30 min
+3. **Output** — Filter dead channels, pick best source stream by priority, generate `#EXTM3U` format playlist
 
 ## Configuration
 
-See `config.yaml`. Key sections:
+See `config.yaml`:
 
 ```yaml
-database:
-  driver: sqlite  # or postgresql
-proxy:
-  transcode:
-    enabled: false
-    video_codec: "libx264"
-    video_bitrate: "2000k"
-security:
-  rate_limit_rpm: 300
-data_retention:
-  validation_records_days: 90
+validation:
+  concurrency: 20
+  per_domain_concurrency: 4
+  timeout_ms: 30000
+  hard_dead_threshold: 3
+
+logging:
+  level: DEBUG
 ```
 
-Environment overrides: `TELIFISAN_PORT`, `TELIFISAN_DATA_DIR`, `TELIFISAN_DB_URL`, `TELIFISAN_LOG_LEVEL`
+Environment: `TELIFISAN_PORT`, `TELIFISAN_DATA_DIR`, `TELIFISAN_DB_URL`, `TELIFISAN_LOG_LEVEL`
 
-## Testing
+## Tests
 
 ```bash
-cd tests
-python -m pytest test_backend.py -v     # 22 unit tests
-python -m pytest test_integration.py -v  # 12 integration tests
+python -m pytest tests/ -q
+```
+
+16 tests covering ingest, validation, output, and HTTP head checks.
+
+## Docker
+
+```bash
+docker build -t telifisan .
+docker run -p 8000:8000 -v $(pwd)/data:/data telifisan
 ```
