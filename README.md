@@ -1,6 +1,6 @@
-# Telifisan v3.0
+# Telifisan
 
-Self-hosted IPTV playlist lifecycle manager with 70+ files, 34 automated tests, and full CI/CD.
+Self-hosted IPTV playlist lifecycle manager
 
 Ingests M3U/Xtream Codes sources, validates streams, applies rules-based filtering and enrichment, and serves cleaned playlists (M3U + XMLTV) to downstream IPTV apps.
 
