@@ -354,7 +354,7 @@ def _streamlink_check(url: str, timeout: float) -> dict:
     """Try to resolve a stream URL via streamlink."""
     try:
         cmd = ["streamlink", "--stream-url", url, "best"]
-        logger.debug(f"    streamlink cmd: streamlink <url> best")
+        logger.debug("    streamlink cmd: streamlink <url> best")
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -368,7 +368,7 @@ def _streamlink_check(url: str, timeout: float) -> dict:
         logger.debug(f"    streamlink failed: {stderr}")
         return {"success": False, "error": stderr}
     except subprocess.TimeoutExpired:
-        logger.debug(f"    streamlink timeout")
+        logger.debug("    streamlink timeout")
         return {"success": False, "error": "streamlink timeout"}
     except Exception as e:
         logger.debug(f"    streamlink error: {e}")

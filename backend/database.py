@@ -160,46 +160,6 @@ def _init_fts5(engine):
 
 
 def fts_search_channels(db, query: str, limit: int = 100) -> list[str]:
-    """
-    Phase 3: full-text search using SQLite FTS5.
-
-    Returns list of canonical_channel rowids matching the query.
-    Falls back to ILIKE if FTS5 is not available.
-    """
-    from backend.models import CanonicalChannel
-    import sqlite3
-    try:
-        conn = db.bind.raw_connection()
-        cursor = conn.cursor()
-        # Use FTS5 with prefix matching
-        cursor.execute(
-            "SELECT rowid FROM channels_fts WHERE channels_fts MATCH ? ORDER BY rank LIMIT ?",
-            (f"{query}*", limit),
-        )
-        rowids = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        if rowids:
-            return rowids
-    except (sqlite3.OperationalError, Exception):
-        pass
-
-    # Fallback: ILIKE search
-    ids = db.query(CanonicalChannel.id).filter(
-        CanonicalChannel.name.ilike(f"%{query}%")
-    ).limit(limit).all()
-    return [id for (id,) in ids]
-
-
-def get_db():
-    """FastAPI dependency: yields a session and closes it on teardown."""
-    session = get_session()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
-def fts_search_channels(db, query: str, limit: int = 100) -> list[str]:
     """Simple ILIKE fallback (no FTS)."""
     from backend.models import CanonicalChannel
     ids = db.query(CanonicalChannel.id).filter(

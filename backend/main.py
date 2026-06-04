@@ -15,6 +15,15 @@ from backend.database import init_db, get_session
 from backend.models import SystemConfig
 from backend.utils.logger import write_log, setup_logging, get_logger
 
+from backend.api.health import router as health_router
+from backend.api.sources import router as sources_router
+from backend.api.channels import router as channels_router
+from backend.api.profiles import router as profiles_router
+from backend.api.tasks import router as tasks_router
+from backend.api.config import router as config_router
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+
 API_START = datetime.now(timezone.utc)
 
 
@@ -24,9 +33,9 @@ async def lifespan(app: FastAPI):
     os.makedirs(config["app"]["data_dir"], exist_ok=True)
     setup_logging()
     logger = get_logger("telifisan")
-    logger.info(f"Starting Telifisan")
+    logger.info("Starting Telifisan")
 
-    engine = init_db(config)
+    init_db(config)
 
     # Alembic migrations
     try:
@@ -111,12 +120,7 @@ async def auth_middleware(request: Request, call_next):
 
 # ── Routers ────────────────────────────────────────────────────
 
-from backend.api.health import router as health_router
-from backend.api.sources import router as sources_router
-from backend.api.channels import router as channels_router
-from backend.api.profiles import router as profiles_router
-from backend.api.tasks import router as tasks_router
-from backend.api.config import router as config_router
+
 
 app.include_router(health_router)
 app.include_router(sources_router, prefix="/api/v1")
@@ -128,8 +132,8 @@ app.include_router(config_router, prefix="/api/v1")
 
 # ── Public M3U endpoint ────────────────────────────────────────
 
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+
+
 
 @app.get("/output/default.m3u")
 def serve_default_m3u():

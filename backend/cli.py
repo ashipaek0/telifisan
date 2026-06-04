@@ -86,7 +86,7 @@ def cmd_channels_list(args):
         for ch in channels:
             status = ch.validation_status.value if ch.validation_status else "UNKNOWN"
             print(f"  {ch.id[:8]}  {ch.name or 'N/A':<40} status={status:<10} uptime={(ch.uptime_percent or 0):.1f}%")
-        print(f"\nShowing up to 100 channels")
+        print("\nShowing up to 100 channels")
     finally:
         session.close()
 
