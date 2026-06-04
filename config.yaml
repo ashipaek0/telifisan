@@ -1,0 +1,23 @@
+app:
+  name: telifisan
+  port: 8000
+  data_dir: ./data
+  log_dir: ./data/logs
+
+database:
+  driver: sqlite
+  url: "sqlite:///./data/telifisan.db"
+
+validation:
+  concurrency: 20
+  per_domain_concurrency: 4
+  timeout_ms: 30000
+  hard_dead_threshold: 3
+  uptime_window_size: 10
+  inter_stream_delay_ms: 50
+
+logging:
+  level: DEBUG
+
+security:
+  api_key_length: 48

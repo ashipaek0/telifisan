@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  telifisan:
+    image: telifisan:latest
+    container_name: telifisan
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      - TELIFISAN_PORT=8000
+      - TELIFISAN_DATA_DIR=/data
+      - TELIFISAN_LOG_LEVEL=INFO
+    restart: unless-stopped
+    stop_grace_period: 30s

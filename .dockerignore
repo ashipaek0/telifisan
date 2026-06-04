@@ -1,0 +1,21 @@
+# Telifisan v3.0 — Docker ignore
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+build
+*.db
+data/
+.env
+.git
+.gitignore
+*.md
+.vscode
+.idea
+node_modules
+frontend/node_modules
+frontend/dist
+.codewhale
+TELIFISAN_TECHNICAL_SPEC*.md
