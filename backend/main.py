@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from backend.config import get_config, generate_api_key
 from backend.database import init_db, get_session
 from backend.models import SystemConfig
@@ -164,6 +165,22 @@ def serve_default_m3u():
         return StreamingResponse(content=iter([m3u]), media_type="audio/x-mpegurl")
     finally:
         db.close()
+
+
+# ── Frontend static files (catch-all, defined last so specific routes take priority) ──
+
+frontend_dir = Path(__file__).resolve().parent.parent / "frontend" / "build"
+if frontend_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_dir / "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        if full_path.startswith(("api/", "output/")):
+            return JSONResponse({"success": False, "error": "Not found"}, status_code=404)
+        index = frontend_dir / "index.html"
+        if index.exists():
+            return HTMLResponse(content=index.read_text())
+        return JSONResponse({"success": False, "error": "Frontend not built"}, status_code=404)
 
 
 # ── Entry Point ────────────────────────────────────────────────
