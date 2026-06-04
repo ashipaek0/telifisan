@@ -107,60 +107,17 @@ def get_session() -> Session:
     return _SessionLocal()
 
 
-# ── Phase 3: FTS5 Full-Text Search ─────────────────────────────
-
-def _init_fts5(engine):
-    """Create FTS5 virtual table for channel search (SQLite only)."""
-    from sqlalchemy import text
-    import sqlite3
+def get_db():
+    """FastAPI dependency: yields a session and closes it on teardown."""
+    session = get_session()
     try:
-        conn = engine.raw_connection()
-        cursor = conn.cursor()
-        # Check if FTS5 is available
-        cursor.execute("SELECT sqlite_compileoption_used('ENABLE_FTS5')")
-        if not cursor.fetchone()[0]:
-            return
-
-        # Create FTS5 table if not exists
-        cursor.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS channels_fts USING fts5(
-                name, name_original, group_name, tvg_id,
-                content='canonical_channels', content_rowid='rowid'
-            )
-        """)
-        # Populate if empty
-        cursor.execute("SELECT COUNT(*) FROM channels_fts")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-                INSERT INTO channels_fts(rowid, name, name_original, group_name, tvg_id)
-                SELECT rowid, name, name_original, "group", tvg_id
-                FROM canonical_channels
-            """)
-        # Create triggers to keep FTS in sync
-        cursor.executescript("""
-            CREATE TRIGGER IF NOT EXISTS channels_fts_insert AFTER INSERT ON canonical_channels BEGIN
-                INSERT INTO channels_fts(rowid, name, name_original, group_name, tvg_id)
-                VALUES (new.rowid, new.name, new.name_original, new."group", new.tvg_id);
-            END;
-            CREATE TRIGGER IF NOT EXISTS channels_fts_delete AFTER DELETE ON canonical_channels BEGIN
-                INSERT INTO channels_fts(channels_fts, rowid, name, name_original, group_name, tvg_id)
-                VALUES ('delete', old.rowid, old.name, old.name_original, old."group", old.tvg_id);
-            END;
-            CREATE TRIGGER IF NOT EXISTS channels_fts_update AFTER UPDATE ON canonical_channels BEGIN
-                INSERT INTO channels_fts(channels_fts, rowid, name, name_original, group_name, tvg_id)
-                VALUES ('delete', old.rowid, old.name, old.name_original, old."group", old.tvg_id);
-                INSERT INTO channels_fts(rowid, name, name_original, group_name, tvg_id)
-                VALUES (new.rowid, new.name, new.name_original, new."group", new.tvg_id);
-            END;
-        """)
-        conn.commit()
-        cursor.close()
-    except (sqlite3.OperationalError, Exception):
-        pass  # FTS5 not available or not on SQLite
+        yield session
+    finally:
+        session.close()
 
 
 def fts_search_channels(db, query: str, limit: int = 100) -> list[str]:
-    """Simple ILIKE fallback (no FTS)."""
+    """Simple ILIKE fallback for channel search."""
     from backend.models import CanonicalChannel
     ids = db.query(CanonicalChannel.id).filter(
         CanonicalChannel.name.ilike(f"%{query}%")
