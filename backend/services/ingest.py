@@ -19,6 +19,7 @@ from backend.models import (
     IngestStatus, ValidationStatus, TaskLog, TaskStatus,
 )
 from backend.utils.m3u_parser import parse_m3u
+from backend.utils.logger import write_log
 
 
 def _normalize_name(name: str) -> str:
@@ -106,7 +107,16 @@ def ingest_source(source_id: str, db: Session) -> TaskLog:
         )
 
         # Process each stream first
-        for raw in raw_streams:
+        for idx, raw in enumerate(raw_streams):
+            # Check cancellation every 500 streams
+            if idx > 0 and idx % 500 == 0:
+                try:
+                    from backend.services.scheduler import _was_cancelled
+                    if _was_cancelled("ingest_source"):
+                        write_log("INFO", "telifisan.ingest", f"Ingest cancelled at stream {idx}/{len(raw_streams)}")
+                        break
+                except Exception:
+                    pass
             stream = _upsert_source_stream(db, source_id, raw)
             if stream:
                 if stream.created_at == stream.updated_at:

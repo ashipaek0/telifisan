@@ -130,11 +130,29 @@ def validate_all_streams(db: Session) -> TaskLog:
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         futures = {}
         for s in streams:
+            # Check cancellation before submitting more work
+            try:
+                from backend.services.scheduler import _was_cancelled
+                if _was_cancelled("validate_streams"):
+                    write_log("INFO", "telifisan.validation", "Validate: cancelled, shutting down")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+            except Exception:
+                pass
+
             futures[executor.submit(_validate_stream_by_id, s.id)] = s
             if stagger_ms > 0:
-                time.sleep(stagger_ms)  # stagger submissions to avoid thundering herd
+                time.sleep(stagger_ms)
 
         for future in as_completed(futures):
+            # Check cancellation between results
+            try:
+                from backend.services.scheduler import _was_cancelled
+                if _was_cancelled("validate_streams"):
+                    break
+            except Exception:
+                pass
+
             try:
                 result = future.result()
                 checked += 1
