@@ -175,7 +175,7 @@ if frontend_dir.exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        if full_path.startswith(("api/", "output/")):
+        if full_path.startswith("api/"):
             return JSONResponse({"success": False, "error": "Not found"}, status_code=404)
         index = frontend_dir / "index.html"
         if index.exists():
