@@ -6,7 +6,9 @@ import { Tv, Server, Activity, Play, Square, Copy } from 'lucide-react';
 
 function relativeTime(iso) {
   if (!iso) return '';
-  const ms = Date.now() - new Date(iso).getTime();
+  // Treat naive timestamps as UTC (backend sends UTC without timezone suffix)
+  const ts = /[Z+-]/.test(iso) ? iso : iso + 'Z';
+  const ms = Date.now() - new Date(ts).getTime();
   if (ms < 0) return 'just now';
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s ago`;

@@ -12,13 +12,14 @@ const LEVEL_COLORS = {
 
 function formatTime(ts) {
   if (!ts) return '';
-  // Already a valid date string
-  const d = new Date(ts);
+  // Treat naive timestamps as UTC (backend sends UTC without timezone suffix)
+  const normalized = /[Z+-]/.test(ts) ? ts : ts + 'Z';
+  const d = new Date(normalized);
   if (!isNaN(d)) return d.toLocaleTimeString();
   // Handle Python asctime format: "2026-06-03 15:39:00,218" (space separator, comma millis)
   const m = ts.match(/^(\d{4}-\d{2}-\d{2})[ ,](\d{2}:\d{2}:\d{2})/);
   if (m) {
-    const d2 = new Date(`${m[1]}T${m[2]}`);
+    const d2 = new Date(`${m[1]}T${m[2]}Z`);
     if (!isNaN(d2)) return d2.toLocaleTimeString();
   }
   // Fallback: show raw timestamp
