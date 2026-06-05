@@ -48,7 +48,23 @@ export default function Sources() {
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'type', label: 'Type' },
-    { key: 'stream_count', label: 'Streams' },
+    { key: 'validation', label: 'Streams', render: (r) => {
+      const v = r.validation || {};
+      const alive = v.alive || 0;
+      const dead = (v.hard_dead || 0) + (v.soft_dead || 0);
+      const unk = v.unknown || 0;
+      const total = v.total || r.stream_count || 0;
+      if (alive + dead + unk === 0) return <span className="text-surface-500">{total}</span>;
+      return (
+        <span className="text-xs">
+          <span className="text-green-400">{alive}</span>
+          <span className="text-surface-600 mx-0.5">/</span>
+          <span className="text-red-400">{dead}</span>
+          {unk > 0 && <><span className="text-surface-600 mx-0.5">/</span><span className="text-surface-500">{unk}</span></>}
+          <span className="text-surface-600 ml-1">({total})</span>
+        </span>
+      );
+    }},
     { key: 'last_ingest_status', label: 'Status', render: (r) => {
       const map = { SUCCESS: 'badge-green', FAILED: 'badge-red', PENDING: 'badge-gray' };
       return <span className={`badge ${map[r.last_ingest_status] || 'badge-gray'}`}>{r.last_ingest_status || '—'}</span>;

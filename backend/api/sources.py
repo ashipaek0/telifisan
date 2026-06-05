@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import Source, SourceStream, SourceType
+from backend.models import Source, SourceStream, SourceType, CanonicalChannel, ValidationStatus
 
 router = APIRouter(tags=["sources"])
 
@@ -38,7 +38,10 @@ class SourceUpdate(BaseModel):
     ingest_schedule: str | None = None
 
 
-def _source_to_dict(s: Source) -> dict:
+from sqlalchemy import func, case
+
+
+def _source_to_dict(s: Source, stats: dict | None = None) -> dict:
     return {
         "id": s.id,
         "name": s.name,
@@ -55,6 +58,7 @@ def _source_to_dict(s: Source) -> dict:
         "last_ingest_error": s.last_ingest_error,
         "ingest_schedule": s.ingest_schedule,
         "stream_count": s.stream_count,
+        "validation": stats if stats else {},
         "created_at": s.created_at.isoformat() if s.created_at else None,
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }
@@ -63,9 +67,38 @@ def _source_to_dict(s: Source) -> dict:
 @router.get("/sources")
 def list_sources(db: Session = Depends(get_db)):
     sources = db.query(Source).filter(Source.deleted_at.is_(None)).all()
+
+    # Bulk fetch validation stats per source
+    source_ids = [s.id for s in sources]
+    if source_ids:
+        rows = db.query(
+            SourceStream.source_id,
+            CanonicalChannel.validation_status,
+            func.count(SourceStream.id).label("cnt"),
+        ).join(
+            CanonicalChannel,
+            SourceStream.canonical_channel_id == CanonicalChannel.id,
+            isouter=True,
+        ).filter(
+            SourceStream.source_id.in_(source_ids),
+            SourceStream.deleted_at.is_(None),
+        ).group_by(
+            SourceStream.source_id, CanonicalChannel.validation_status,
+        ).all()
+
+        stats_map: dict[str, dict] = {}
+        for source_id, status, cnt in rows:
+            if source_id not in stats_map:
+                stats_map[source_id] = {"alive": 0, "soft_dead": 0, "hard_dead": 0, "unknown": 0, "total": 0}
+            label = (status.value if status else "unknown").lower()
+            stats_map[source_id][label] = cnt
+            stats_map[source_id]["total"] += cnt
+    else:
+        stats_map = {}
+
     return {
         "success": True,
-        "data": [_source_to_dict(s) for s in sources],
+        "data": [_source_to_dict(s, stats_map.get(s.id, {})) for s in sources],
         "error": None,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
