@@ -469,7 +469,7 @@ def update_scheduler_config(body: dict, db: Session = Depends(get_db)):
     from backend.services.scheduler import set_schedule_interval
     ok = set_schedule_interval(task_name, int(hours), db)
     if not ok:
-        raise HTTPException(status_code=400, detail=f"Invalid task or hours. Valid: ingest_sources, validate_streams, generate_outputs")
+        raise HTTPException(status_code=400, detail="Invalid task or hours. Valid: ingest_sources, validate_streams, generate_outputs")
     return {"success": True, "data": {"task_name": task_name, "hours": hours}, "error": None, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
