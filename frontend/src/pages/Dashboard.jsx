@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getDashboard, runTask, stopTask } from '../api/client';
+import { getDashboard, runTask, stopTask, getSchedulerConfig, setSchedulerInterval } from '../api/client';
 import { toast } from '../components/Toast';
 import LogViewer from '../components/LogViewer';
 import { Tv, Server, Activity, Play, Square, Copy } from 'lucide-react';
@@ -28,6 +28,7 @@ function progressPercent(current, total) {
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [schedule, setSchedule] = useState(null);
 
   // Poll dashboard (includes task_progress) every 3 seconds
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function Dashboard() {
         setStats(d.data);
         setLoading(false);
       }).catch(() => setLoading(false));
+      getSchedulerConfig().then(r => setSchedule(r.data || null)).catch(() => {});
     };
     poll();
     const iv = setInterval(poll, 3000);
@@ -154,6 +156,33 @@ export default function Dashboard() {
           </p>
         )}
       </div>
+
+      {/* Scheduler */}
+      {schedule && (
+        <div className="card">
+          <h3 className="font-medium text-surface-200 mb-3">Task Schedule</h3>
+          <div className="space-y-2">
+            {Object.entries(schedule).map(([name, hours]) => (
+              <div key={name} className="flex items-center justify-between py-1">
+                <span className="text-sm text-surface-400 capitalize">{name.replace(/_/g, ' ')}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-sm text-surface-100 w-16 text-center"
+                    type="number" min="1" max="168"
+                    defaultValue={hours}
+                    onBlur={(e) => {
+                      const h = parseInt(e.target.value);
+                      if (h && h > 0) setSchedulerInterval(name, h).then(() => toast(`Schedule updated: ${name} every ${h}h`, 'success')).catch(() => {});
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                  />
+                  <span className="text-xs text-surface-600">hours</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Playlist URL */}
       <div className="card">

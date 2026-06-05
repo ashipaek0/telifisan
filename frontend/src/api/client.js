@@ -51,6 +51,10 @@ export const runTask = (name) => client.post(`/tasks/${name}/run`);
 export const stopTask = (name) => client.post(`/tasks/${name}/stop`);
 export const getTaskLogs = (name, page = 1) => client.get(`/tasks/${name}/logs?page=${page}&per_page=20`);
 
+// ── Scheduler ───────────────────────────────────
+export const getSchedulerConfig = () => client.get('/config/scheduler');
+export const setSchedulerInterval = (taskName, hours) => client.put('/config/scheduler', { task_name: taskName, hours });
+
 // ── Logs ────────────────────────────────────────
 export const getLogs = (lines = 200, level = 'DEBUG') => client.get('/logs', { params: { lines, level } });
 

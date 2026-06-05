@@ -446,6 +446,33 @@ def rotate_api_key(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/config/scheduler")
+def get_scheduler_config(db: Session = Depends(get_db)):
+    """Return the current scheduler intervals per task."""
+    from backend.services.scheduler import get_schedule_config
+    intervals = get_schedule_config(db)
+    return {
+        "success": True,
+        "data": intervals,
+        "error": None,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.put("/config/scheduler")
+def update_scheduler_config(body: dict, db: Session = Depends(get_db)):
+    """Update a scheduler interval. Body: {"task_name": "ingest_sources", "hours": 4}"""
+    task_name = body.get("task_name")
+    hours = body.get("hours")
+    if not task_name or not hours:
+        raise HTTPException(status_code=400, detail="task_name and hours required")
+    from backend.services.scheduler import set_schedule_interval
+    ok = set_schedule_interval(task_name, int(hours), db)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"Invalid task or hours. Valid: ingest_sources, validate_streams, generate_outputs")
+    return {"success": True, "data": {"task_name": task_name, "hours": hours}, "error": None, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
 @router.post("/config/log-level")
 def set_log_level_endpoint(body: dict, db: Session = Depends(get_db)):
     """Toggle debug logging at runtime. Body: {"level": "DEBUG"|"INFO"|"WARNING"|"ERROR"}"""

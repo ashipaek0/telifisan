@@ -196,16 +196,70 @@ TASK_FUNCTIONS = {
 }
 
 
+def get_schedule_config(db=None) -> dict:
+    """Get current scheduler intervals from SystemConfig."""
+    intervals = {"ingest_sources": 6, "validate_streams": 2, "generate_outputs": 1}
+    if db is None:
+        from backend.database import get_session
+        db = get_session()
+        own_session = True
+    else:
+        own_session = False
+    try:
+        from backend.models import SystemConfig
+        for task_name in intervals:
+            row = db.query(SystemConfig).filter_by(key=f"scheduler_{task_name}_hours").first()
+            if row and row.value:
+                try:
+                    intervals[task_name] = int(row.value)
+                except (ValueError, TypeError):
+                    pass
+        return intervals
+    finally:
+        if own_session:
+            db.close()
+
+
+def set_schedule_interval(task_name: str, hours: int, db) -> bool:
+    """Set a scheduler interval and restart the job. Returns True if updated."""
+    from backend.models import SystemConfig
+    valid = {"ingest_sources", "validate_streams", "generate_outputs"}
+    if task_name not in valid or hours < 1:
+        return False
+
+    # Persist
+    existing = db.query(SystemConfig).filter_by(key=f"scheduler_{task_name}_hours").first()
+    if existing:
+        existing.value = hours
+    else:
+        db.add(SystemConfig(key=f"scheduler_{task_name}_hours", value=hours))
+    db.commit()
+
+    # Reschedule running job
+    task_map = {
+        "ingest_sources": _run_ingest_sources,
+        "validate_streams": _run_validate_streams,
+        "generate_outputs": _run_generate_outputs,
+    }
+    func = task_map.get(task_name)
+    if func and _scheduler:
+        _scheduler.reschedule_job(task_name, trigger="interval", hours=hours)
+        write_log("INFO", "telifisan.scheduler", f"Rescheduled {task_name} to every { hours}h")
+    return True
+
+
 def start_scheduler():
     global _scheduler
     if _scheduler is not None:
         return
+
+    config = get_schedule_config()
     _scheduler = BackgroundScheduler()
-    _scheduler.add_job(_run_ingest_sources, "interval", hours=6, id="ingest_sources")
-    _scheduler.add_job(_run_validate_streams, "interval", hours=2, id="validate_streams")
-    _scheduler.add_job(_run_generate_outputs, "interval", hours=1, id="generate_outputs")
+    _scheduler.add_job(_run_ingest_sources, "interval", hours=config["ingest_sources"], id="ingest_sources")
+    _scheduler.add_job(_run_validate_streams, "interval", hours=config["validate_streams"], id="validate_streams")
+    _scheduler.add_job(_run_generate_outputs, "interval", hours=config["generate_outputs"], id="generate_outputs")
     _scheduler.start()
-    logger.info("Scheduler started (ingest=6h, validate=2h, output=1h)")
+    logger.info(f"Scheduler started (ingest={config['ingest_sources']}h, validate={config['validate_streams']}h, output={config['generate_outputs']}h)")
 
 
 def stop_scheduler():
