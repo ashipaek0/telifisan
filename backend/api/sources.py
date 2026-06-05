@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -38,7 +39,6 @@ class SourceUpdate(BaseModel):
     ingest_schedule: str | None = None
 
 
-from sqlalchemy import func, case
 
 
 def _source_to_dict(s: Source, stats: dict | None = None) -> dict:
