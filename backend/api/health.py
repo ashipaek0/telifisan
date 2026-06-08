@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import (
-    Source, SourceStream, CanonicalChannel, OutputProfile, TaskLog, ValidationStatus,
+    Source, SourceStream, CanonicalChannel, OutputProfile, TaskLog, TaskStatus, ValidationStatus,
 )
 
 router = APIRouter(tags=["health"])
@@ -37,6 +37,20 @@ def health_check(db: Session = Depends(get_db)):
 def dashboard(db: Session = Depends(get_db)):
     """Dashboard stats — channels with active streams only."""
     now = datetime.now(timezone.utc)
+
+    # Expire stale RUNNING tasks (> 30 min), e.g. after a reboot
+    from datetime import timedelta
+    stale = db.query(TaskLog).filter(TaskLog.status == TaskStatus.RUNNING).all()
+    for t in stale:
+        started = t.started_at
+        if started and started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if started and (now - started) > timedelta(minutes=30):
+            t.status = TaskStatus.FAILED
+            t.message = "Stale — server restart or timeout"
+            t.completed_at = now
+    if stale:
+        db.commit()
 
     total_sources = db.query(func.count(Source.id)).filter(Source.deleted_at.is_(None)).scalar() or 0
 

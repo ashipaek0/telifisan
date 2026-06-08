@@ -10,14 +10,17 @@ function relativeTime(iso) {
   const ts = /[Z+-]/.test(iso) ? iso : iso + 'Z';
   const ms = Date.now() - new Date(ts).getTime();
   if (ms < 0) return 'just now';
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  const remSec = sec % 60;
+  if (min < 60) return remSec > 0 ? `${min}m ${remSec}s ago` : `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  const remMin = min % 60;
+  if (hr < 24) return remMin > 0 ? `${hr}h ${remMin}m ago` : `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  const remHr = hr % 24;
+  return remHr > 0 ? `${days}d ${remHr}h ago` : `${days}d ago`;
 }
 
 function progressPercent(current, total) {

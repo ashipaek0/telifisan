@@ -253,6 +253,24 @@ def start_scheduler():
     if _scheduler is not None:
         return
 
+    # Mark any RUNNING tasks as stale (server was restarted)
+    from backend.database import get_session
+    db = get_session()
+    try:
+        stale = db.query(TaskLog).filter(TaskLog.status == TaskStatus.RUNNING).all()
+        now = datetime.now(timezone.utc)
+        for t in stale:
+            t.status = TaskStatus.FAILED
+            t.message = "Stale — server restart"
+            t.completed_at = now
+        if stale:
+            db.commit()
+            logger.info(f"Cleared {len(stale)} stale RUNNING task(s) on startup")
+    except Exception as e:
+        logger.warning(f"Could not clear stale tasks: {e}")
+    finally:
+        db.close()
+
     config = get_schedule_config()
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(_run_ingest_sources, "interval", hours=config["ingest_sources"], id="ingest_sources")
