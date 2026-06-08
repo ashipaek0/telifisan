@@ -27,10 +27,11 @@ function formatTime(ts) {
 }
 
 export default function LogViewer() {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [paused, setPaused] = useState(false);
   const [lines, setLines] = useState([]);
   const [level, setLevel] = useState('DEBUG');
+  const containerRef = useRef(null);
   const bottomRef = useRef(null);
   const intervalRef = useRef(null);
 
@@ -50,9 +51,13 @@ export default function LogViewer() {
     return () => clearInterval(intervalRef.current);
   }, [fetchLogs, paused]);
 
-  // Auto-scroll
+  // Auto-scroll only when the user is near the bottom of the container
   useEffect(() => {
-    if (!paused) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (paused) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [lines, paused]);
 
   return (
@@ -99,7 +104,7 @@ export default function LogViewer() {
 
       {/* Log lines */}
       {expanded && (
-        <div className="max-h-72 overflow-y-auto bg-surface-950 font-mono text-[11px] leading-relaxed">
+        <div ref={containerRef} className="max-h-72 overflow-y-auto bg-surface-950 font-mono text-[11px] leading-relaxed">
           {lines.length === 0 ? (
             <div className="p-4 text-center text-surface-600">No log entries yet</div>
           ) : (
