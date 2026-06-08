@@ -57,6 +57,7 @@ export const setSchedulerInterval = (taskName, hours) => client.put('/config/sch
 
 // ── Logs ────────────────────────────────────────
 export const getLogs = (lines = 200, level = 'DEBUG') => client.get('/logs', { params: { lines, level } });
+export const deleteLogs = () => client.delete('/logs');
 
 export { API_BASE };
 export default client;

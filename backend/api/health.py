@@ -96,3 +96,15 @@ def get_logs(lines: int = 200, level: str = "DEBUG"):
         "error": None,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.delete("/api/v1/logs")
+def clear_logs():
+    from backend.utils.logger import clear_log_file
+    clear_log_file()
+    return {
+        "success": True,
+        "data": None,
+        "error": None,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }

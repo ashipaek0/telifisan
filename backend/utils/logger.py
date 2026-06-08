@@ -70,6 +70,14 @@ def read_log_file(lines: int = 200, level: str = "DEBUG") -> list[dict]:
         return []
 
 
+def clear_log_file():
+    """Truncate the persistent log file."""
+    config = get_config()
+    log_file = Path(config["app"]["log_dir"]) / "telifisan.log"
+    if log_file.exists():
+        log_file.write_text("")
+
+
 def setup_logging():
     """Configure structured JSON logging."""
     config = get_config()

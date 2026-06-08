@@ -7,27 +7,32 @@ const links = [
   { to: '/channels', icon: Tv, label: 'Channels' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }) {
   const location = useLocation();
 
+  const handleLinkClick = () => {
+    if (onClose) onClose();
+  };
+
   return (
-    <aside className="w-56 bg-surface-900 border-r border-surface-700 flex flex-col shrink-0">
-      <div className="p-4 border-b border-surface-700">
+    <aside className="w-56 bg-surface-900 border-r border-surface-700 flex flex-col shrink-0 h-screen">
+      <div className="hidden md:block p-4 border-b border-surface-700">
         <h1 className="text-lg font-bold text-accent-400 flex items-center gap-2">
           <Activity size={22} /> Telifisan
         </h1>
       </div>
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {links.map(({ to, icon: Icon, label }) => {
           const active = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
           return (
             <NavLink
               key={to} to={to}
+              onClick={handleLinkClick}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
                 active ? 'bg-accent-600/20 text-accent-400' : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200'
               }`}
             >
-              <Icon size={18} /> {label}
+              <Icon size={18} className="flex-shrink-0" /> <span className="truncate">{label}</span>
             </NavLink>
           );
         })}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getLogs } from '../api/client';
+import { getLogs, deleteLogs } from '../api/client';
 import { ChevronDown, ChevronUp, Trash2, Pause, Play } from 'lucide-react';
 
 const LEVEL_COLORS = {
@@ -83,7 +83,7 @@ export default function LogViewer() {
           </button>
           <button
             className="btn btn-ghost p-1 text-surface-500 hover:text-surface-300"
-            onClick={() => setLines([])}
+            onClick={() => { deleteLogs().then(() => { setLines([]); }).catch(() => {}); }}
             title="Clear"
           >
             <Trash2 size={12} />
