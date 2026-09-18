@@ -1,22 +1,37 @@
-# Data
-data/
-
-# Python
+```gitignore
+# Python cache
 __pycache__/
 *.pyc
-.venv/
+*.pyo
+*.pyd
 
-# Frontend
+# Dependencies
 node_modules/
-dist/
-frontend/build/
 
-# OS
-.DS_Store
+# Build outputs
+frontend/dist/
 
-# IDE
+# Environment variables
+.env
+.env.local
+.env.*
+
+# IDE and editor files
 .vscode/
 .idea/
+*.swp
+*.swo
+*.tmp
 
-# Other
-.codewhale/
+# Logs
+*.log
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Python virtual environments
+venv/
+.venv/
+```

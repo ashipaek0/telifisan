@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { ToastProvider } from './contexts/ToastContext';
 import './styles/main.css';
 
 // Theme: dark by default, respects saved preference
@@ -19,7 +20,9 @@ fetch('/api/v1/config/key')
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </BrowserRouter>
   </React.StrictMode>
 );
